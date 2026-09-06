@@ -1,14 +1,39 @@
 # Recreate and optionally implement the PYNQ-Z1 NPU matrix overlay.
-# Usage: vivado -mode batch -source build_overlay.tcl -tclargs ?--elaborate-only? ?--allow-dirty?
+# Usage: vivado -mode batch -source build_overlay.tcl -tclargs
+#        ?--array-size 2|8? ?--elaborate-only? ?--allow-dirty?
 
 set script_dir [file normalize [file dirname [info script]]]
 set repo_root [file normalize [file join $script_dir .. .. .. ..]]
-set build_root [file normalize [file join $repo_root build vivado npu_matrix]]
+set array_size 2
+set elaborate_only 0
+set allow_dirty 0
+for {set argument_index 0} {$argument_index < [llength $argv]} {incr argument_index} {
+    set argument [lindex $argv $argument_index]
+    switch -- $argument {
+        --array-size {
+            incr argument_index
+            if {$argument_index >= [llength $argv]} {
+                error "--array-size requires 2 or 8"
+            }
+            set array_size [lindex $argv $argument_index]
+            if {$array_size ni {2 8}} {
+                error "unsupported array size '$array_size': expected 2 or 8"
+            }
+        }
+        --elaborate-only { set elaborate_only 1 }
+        --allow-dirty { set allow_dirty 1 }
+        default { error "unknown argument '$argument'" }
+    }
+}
+
+set build_name npu_matrix
+if {$array_size != 2} {
+    set build_name "npu_matrix_${array_size}x${array_size}"
+}
+set build_root [file normalize [file join $repo_root build vivado $build_name]]
 set project_dir [file join $build_root project]
 set report_dir [file join $build_root reports]
 set artifact_dir [file join $build_root artifacts]
-set elaborate_only [expr {[lsearch -exact $argv "--elaborate-only"] >= 0}]
-set allow_dirty [expr {[lsearch -exact $argv "--allow-dirty"] >= 0}]
 set jobs 4
 
 if {!$elaborate_only && !$allow_dirty} {
@@ -72,7 +97,10 @@ set_property -dict [list \
     CONFIG.c_s_axis_s2mm_tdata_width {32} \
     CONFIG.c_sg_length_width {23}] $dma
 set accelerator [create_bd_cell -type module -reference npu_matrix_accelerator npu_matrix_accelerator_0]
-set_property -dict [list CONFIG.ROWS {2} CONFIG.COLUMNS {2} CONFIG.MAX_K {256}] $accelerator
+set_property -dict [list \
+    CONFIG.ROWS $array_size \
+    CONFIG.COLUMNS $array_size \
+    CONFIG.MAX_K {256}] $accelerator
 set irq_concat [create_bd_cell -type ip -vlnv xilinx.com:ip:xlconcat:* irq_concat]
 set_property CONFIG.NUM_PORTS {3} $irq_concat
 
@@ -138,7 +166,7 @@ foreach segment [get_bd_addr_segs] {
 close $address_file
 
 if {$elaborate_only} {
-    puts "PASS: npu_matrix Vivado block-design elaboration"
+    puts "PASS: npu_matrix ${array_size}x${array_size} Vivado block-design elaboration"
     close_project
     exit 0
 }
@@ -211,7 +239,8 @@ set source_commit unknown
 catch {set source_commit [string trim [exec git -C $repo_root rev-parse HEAD]]}
 set verifier [file join $repo_root src runtime verify_overlay.py]
 if {[catch {exec python $verifier --write-manifest \
-    --source-commit $source_commit --vivado-version [version -short] $artifact_dir} verify_output]} {
+    --source-commit $source_commit --vivado-version [version -short] \
+    --array-size $array_size $artifact_dir} verify_output]} {
     error "overlay provenance verification failed: $verify_output"
 }
 puts $verify_output
@@ -219,6 +248,8 @@ puts $verify_output
 set evidence [open [file join $report_dir build_evidence.txt] w]
 puts $evidence "vivado=[version -short]"
 puts $evidence "part=xc7z020clg400-1"
+puts $evidence "rows=$array_size"
+puts $evidence "columns=$array_size"
 puts $evidence "wns=$wns"
 puts $evidence "setup_failing_paths=[llength $failing_paths]"
 puts $evidence "drc_errors=[llength $drc_errors]"
@@ -226,6 +257,6 @@ puts $evidence "bit=[file join $artifact_dir npu_matrix.bit]"
 puts $evidence "hwh=[file join $artifact_dir npu_matrix.hwh]"
 puts $evidence "source_commit=$source_commit"
 close $evidence
-puts "PASS: npu_matrix Vivado implementation and bitstream"
+puts "PASS: npu_matrix ${array_size}x${array_size} Vivado implementation and bitstream"
 close_project
 exit 0

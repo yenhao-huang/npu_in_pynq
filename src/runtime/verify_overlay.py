@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -41,6 +42,18 @@ class OverlayVerificationError(RuntimeError):
     """Generated artifacts or their provenance do not satisfy the contract."""
 
 
+def _expected_metadata(array_size: int) -> dict[str, object]:
+    if array_size not in (2, 8):
+        raise OverlayVerificationError(
+            f"unsupported array size {array_size}: expected 2 or 8"
+        )
+    expected = copy.deepcopy(EXPECTED_METADATA)
+    parameters = expected["accelerator"]["parameters"]
+    parameters["ROWS"] = str(array_size)
+    parameters["COLUMNS"] = str(array_size)
+    return expected
+
+
 def _validated_commit(value: str) -> str:
     commit = value.strip()
     if re.fullmatch(r"[0-9a-fA-F]{40,64}", commit) is None:
@@ -70,10 +83,10 @@ def _module_parameters(hwh_path: Path, instance: str) -> dict[str, str]:
     raise OverlayVerificationError(f"HWH is missing module {instance}")
 
 
-def inspect_hwh(hwh_path: Path) -> dict[str, object]:
+def inspect_hwh(hwh_path: Path, *, array_size: int = 2) -> dict[str, object]:
     observed: dict[str, object] = {}
     text = hwh_path.read_text(encoding="utf-8")
-    for role, expectation in EXPECTED_METADATA.items():
+    for role, expectation in _expected_metadata(array_size).items():
         instance = str(expectation["instance"])
         parameters = _module_parameters(hwh_path, instance)
         expected_parameters = dict(expectation["parameters"])
@@ -110,15 +123,20 @@ def _artifact_paths(artifact_dir: Path) -> tuple[Path, Path, Path]:
 
 
 def write_manifest(
-    artifact_dir: Path, *, source_commit: str, vivado_version: str
+    artifact_dir: Path,
+    *,
+    source_commit: str,
+    vivado_version: str,
+    array_size: int = 2,
 ) -> dict[str, object]:
     bit_path, hwh_path, manifest_path = _artifact_paths(artifact_dir)
-    metadata = inspect_hwh(hwh_path)
+    metadata = inspect_hwh(hwh_path, array_size=array_size)
     manifest: dict[str, object] = {
         "schema_version": 1,
         "source_commit": _validated_commit(source_commit),
         "vivado_version": vivado_version.strip(),
         "target_part": "xc7z020clg400-1",
+        "array_size": array_size,
         "bit": {
             "name": bit_path.name,
             "size": bit_path.stat().st_size,
@@ -153,7 +171,10 @@ def verify_artifacts(artifact_dir: Path) -> dict[str, object]:
             raise OverlayVerificationError(f"{label} name or size does not match manifest")
         if record.get("sha256") != _sha256(path):
             raise OverlayVerificationError(f"{label} hash does not match manifest")
-    observed = inspect_hwh(hwh_path)
+    array_size = manifest.get("array_size", 2)
+    if isinstance(array_size, bool) or not isinstance(array_size, int):
+        raise OverlayVerificationError("manifest array_size must be 2 or 8")
+    observed = inspect_hwh(hwh_path, array_size=array_size)
     if manifest.get("metadata") != observed:
         raise OverlayVerificationError("HWH metadata differs from the build manifest")
     return manifest
@@ -174,6 +195,7 @@ def main() -> int:
     parser.add_argument("--write-manifest", action="store_true")
     parser.add_argument("--source-commit", default=_default_commit())
     parser.add_argument("--vivado-version", default="unknown")
+    parser.add_argument("--array-size", type=int, choices=(2, 8), default=2)
     arguments = parser.parse_args()
     artifact_dir = arguments.artifact_dir.resolve()
     if arguments.write_manifest:
@@ -181,6 +203,7 @@ def main() -> int:
             artifact_dir,
             source_commit=arguments.source_commit,
             vivado_version=arguments.vivado_version,
+            array_size=arguments.array_size,
         )
     verify_artifacts(artifact_dir)
     print("PASS: npu_matrix BIT/HWH provenance and metadata")
