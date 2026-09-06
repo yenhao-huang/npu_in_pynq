@@ -435,6 +435,7 @@ class QuantizedGraph:
         if isinstance(command, Conv2D):
             source = tensors[command.input_id]
             weight = constants[command.weight_id]
+            self._validate_matrix_input_quantization(command, source)
             if source.layout != "NHWC" or output.layout != "NHWC":
                 raise GraphValidationError("convolution requires NHWC tensors")
             if weight.dtype != "int8" or weight.layout != "HWIO":
@@ -521,6 +522,7 @@ class QuantizedGraph:
         elif isinstance(command, FullyConnected):
             source = tensors[command.input_id]
             weight = constants[command.weight_id]
+            self._validate_matrix_input_quantization(command, source)
             if source.layout != "NC" or output.layout != "NC":
                 raise GraphValidationError("fully connected requires NC tensors")
             if weight.dtype != "int8" or weight.layout != "IO":
@@ -538,6 +540,14 @@ class QuantizedGraph:
         else:
             raise GraphValidationError(
                 f"unsupported command record {type(command).__name__}"
+            )
+
+    @staticmethod
+    def _validate_matrix_input_quantization(command, source) -> None:
+        if source.quantization.zero_point != 0:
+            raise GraphValidationError(
+                f"command {command.command_id!r} requires symmetric INT8 input "
+                "with zero_point=0"
             )
 
     @staticmethod

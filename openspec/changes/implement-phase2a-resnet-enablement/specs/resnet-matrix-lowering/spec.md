@@ -11,7 +11,8 @@ The lowerer SHALL map convolution output positions to matrix M, flattened HWIO
 kernel elements to K, and output channels to N. It SHALL partition M and N by
 runtime-discovered physical limits and materialize only the current dense
 signed INT8 input patch tile and weight tile before submitting each job through
-the public Phase 1 runtime.
+the public Phase 1 runtime. It SHALL reject non-zero input zero points before
+physical submission and SHALL fill convolution padding with signed INT8 zero.
 
 #### Scenario: Edge tiles in all matrix dimensions
 - **WHEN** convolution output positions or channels are not multiples of the physical M or N limits

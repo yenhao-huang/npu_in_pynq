@@ -80,6 +80,13 @@ NHWC tensors; fully connected layers use NC tensors. Convolution weights use
 HWIO layout, fully connected weights use IO layout, and bias tensors are signed
 INT32.
 
+Inputs to convolution and fully connected operators use symmetric INT8
+quantization and therefore require `zero_point=0`. Non-zero input zero points
+are rejected during graph validation, by the reference operators, and by
+runtime lowering before any hardware job is submitted. Convolution padding
+represents real zero with the signed INT8 value `0`. Output tensors may still
+use a non-zero zero point as declared by their requantization contract.
+
 Convolution is limited to `groups=1` and `dilation=(1, 1)`. Batch normalization
 must be folded into a preceding convolution or fully connected operation.
 Residual inputs must have identical shape, layout, and quantization.

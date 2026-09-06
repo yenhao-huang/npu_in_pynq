@@ -134,6 +134,56 @@ class WholeGraphValidationTests(unittest.TestCase):
         self.assertEqual(tuple(command.command_id for command in graph.commands),
                          ("conv", "relu", "pool", "avg", "flatten", "fc"))
 
+    def test_matrix_operators_reject_asymmetric_input_quantization(self):
+        asymmetric = Quantization(
+            multiplier_q31=INT32_MAX,
+            shift=0,
+            zero_point=7,
+        )
+        valid = self._valid_graph()
+        conv_tensors = tuple(
+            activation(
+                tensor.name,
+                tensor.shape,
+                tensor.layout,
+                asymmetric if tensor.name == "input" else tensor.quantization,
+            )
+            for tensor in valid.tensors
+        )
+        with self.assertRaisesRegex(GraphValidationError, "symmetric INT8 input"):
+            QuantizedGraph(
+                tensors=conv_tensors,
+                constants=valid.constants,
+                commands=valid.commands,
+                inputs=valid.inputs,
+                outputs=valid.outputs,
+            )
+
+        tensors = (
+            activation("input", (1, 1), "NC", asymmetric),
+            activation("output", (1, 1), "NC"),
+        )
+        constants = (
+            ConstantTensor("weight", (1, 1), "int8", "IO", (1,)),
+        )
+        with self.assertRaisesRegex(GraphValidationError, "symmetric INT8 input"):
+            QuantizedGraph(
+                tensors=tensors,
+                constants=constants,
+                commands=(
+                    FullyConnected(
+                        "fc",
+                        "input",
+                        "weight",
+                        "output",
+                        (INT32_MAX,),
+                        (0,),
+                    ),
+                ),
+                inputs=("input",),
+                outputs=("output",),
+            )
+
     def test_duplicate_ids_and_unknown_commands_fail(self):
         valid = self._valid_graph()
         with self.assertRaisesRegex(GraphValidationError, "duplicate"):

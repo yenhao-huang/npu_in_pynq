@@ -109,7 +109,7 @@ class ConvolutionLoweringTests(unittest.TestCase):
             bias=bias,
             stride=(1, 1),
             padding=(1, 0, 1, 0),
-            input_zero_point=-4,
+            input_zero_point=0,
             software_timeout=10.0,
         )
         expected = conv2d_int8(
@@ -121,7 +121,7 @@ class ConvolutionLoweringTests(unittest.TestCase):
             bias=bias,
             stride=(1, 1),
             padding=(1, 0, 1, 0),
-            input_zero_point=-4,
+            input_zero_point=0,
         )
         np.testing.assert_array_equal(result.output, expected)
         self.assertEqual(result.metrics.physical_jobs, 30)
@@ -159,6 +159,21 @@ class ConvolutionLoweringTests(unittest.TestCase):
             )
         self.assertEqual(runtime.calls, [])
 
+    def test_nonzero_input_zero_point_prevents_convolution_calls(self):
+        runtime = FakeRuntime()
+        weights = np.ones((1, 1, 1, 1), dtype=np.int8)
+        with self.assertRaisesRegex(LoweringValidationError, "symmetric INT8"):
+            MatrixLowerer(runtime).conv2d(
+                np.ones((1, 1, 1, 1), dtype=np.int8),
+                weights,
+                accumulator_bounds=bounds_for(weights),
+                multipliers_q31=(INT32_MAX,),
+                shifts=(0,),
+                output_zero_point=0,
+                input_zero_point=3,
+            )
+        self.assertEqual(runtime.calls, [])
+
     def test_incompatible_physical_result_is_rejected(self):
         runtime = FakeRuntime()
         runtime.bad_result = np.zeros((1, 1), dtype=np.int8)
@@ -177,6 +192,21 @@ class ConvolutionLoweringTests(unittest.TestCase):
 
 
 class FullyConnectedLoweringTests(unittest.TestCase):
+    def test_nonzero_input_zero_point_prevents_fully_connected_calls(self):
+        runtime = FakeRuntime()
+        weights = np.ones((1, 1), dtype=np.int8)
+        with self.assertRaisesRegex(LoweringValidationError, "symmetric INT8"):
+            MatrixLowerer(runtime).fully_connected(
+                np.ones((1, 1), dtype=np.int8),
+                weights,
+                accumulator_bounds=bounds_for(weights),
+                multipliers_q31=(INT32_MAX,),
+                shifts=(0,),
+                output_zero_point=0,
+                input_zero_point=-2,
+            )
+        self.assertEqual(runtime.calls, [])
+
     def test_m_one_n_edge_and_k_slices_match_golden(self):
         runtime = FakeRuntime(max_m=2, max_n=2, max_k=3)
         lowerer = MatrixLowerer(runtime)

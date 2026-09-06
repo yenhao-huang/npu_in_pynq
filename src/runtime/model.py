@@ -477,6 +477,9 @@ class NPUModelRuntime:
                         output_zero_point=tensor_specs[
                             command.output_id
                         ].quantization.zero_point,
+                        input_zero_point=tensor_specs[
+                            command.input_id
+                        ].quantization.zero_point,
                         bias=constants.get(command.bias_id),
                         hardware_timeout_cycles=hardware_timeout_cycles,
                         software_timeout=remaining,

@@ -15,6 +15,11 @@ be groups=1, dilation=1, positive stride, and explicit non-negative padding.
 Unsupported operators, ranks, layouts, groups, dilation, or inconsistent tensor
 shapes SHALL fail before package output or execution.
 
+Inputs to convolution and fully connected operators SHALL use symmetric signed
+INT8 quantization with zero point zero. Graph validation, export, reference
+operators, and runtime lowering SHALL reject any non-zero input zero point
+before execution.
+
 #### Scenario: Unsupported grouped convolution
 - **WHEN** a graph contains a convolution whose groups value is not one
 - **THEN** export fails with an error identifying the operator and unsupported parameter
@@ -25,12 +30,17 @@ Convolution SHALL visit kernel height, kernel width, and input channel in
 increasing order for every NHWC output position and HWIO output channel. Each
 signed INT8 product SHALL use the Phase 0 ordered saturating INT32 MAC contract;
 an optional signed INT32 bias SHALL then be saturating-added, and the result
-SHALL use the Phase 0 Q1.31 requantization contract. Padding elements SHALL
-equal the signed INT8 input zero point.
+    SHALL use the Phase 0 Q1.31 requantization contract. Padding elements SHALL
+equal signed INT8 zero so that they represent real zero under the required
+symmetric input contract.
 
 #### Scenario: Strided padded convolution
 - **WHEN** a batch-one 7x7 convolution uses stride two and explicit padding three
-- **THEN** every output equals the bit-accurate reference using input-zero-point padding
+- **THEN** every output equals the bit-accurate reference using signed INT8 zero padding
+
+#### Scenario: Asymmetric matrix input is rejected
+- **WHEN** a convolution or fully connected input declares a non-zero zero point
+- **THEN** graph validation fails before package output or execution
 
 ### Requirement: Residual add and activation
 

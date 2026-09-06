@@ -227,6 +227,10 @@ class MatrixLowerer:
         input_zero_point = _bounded(
             "input_zero_point", input_zero_point, INT8_MIN, INT8_MAX
         )
+        if input_zero_point != 0:
+            raise LoweringValidationError(
+                "input_zero_point must be zero for symmetric INT8 convolution"
+            )
         output_zero_point = _bounded(
             "output_zero_point", output_zero_point, INT8_MIN, INT8_MAX
         )
@@ -321,6 +325,7 @@ class MatrixLowerer:
         shifts: Sequence[int],
         output_zero_point: int,
         bias: np.ndarray | None = None,
+        input_zero_point: int = 0,
         hardware_timeout_cycles: int = 1_000_000,
         software_timeout: float = 5.0,
     ) -> LoweringResult:
@@ -341,6 +346,13 @@ class MatrixLowerer:
         if source.shape != (1, logical_k):
             raise LoweringValidationError(
                 "source feature count must match weights"
+            )
+        input_zero_point = _bounded(
+            "input_zero_point", input_zero_point, INT8_MIN, INT8_MAX
+        )
+        if input_zero_point != 0:
+            raise LoweringValidationError(
+                "input_zero_point must be zero for symmetric INT8 fully connected"
             )
         output_zero_point = _bounded(
             "output_zero_point", output_zero_point, INT8_MIN, INT8_MAX

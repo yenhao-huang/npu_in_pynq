@@ -98,7 +98,7 @@ class ConvolutionTests(unittest.TestCase):
             bias,
             (2, 2),
             (1, 0, 1, 0),
-            -4,
+            0,
         )
         actual = conv2d_int8(
             source,
@@ -109,11 +109,22 @@ class ConvolutionTests(unittest.TestCase):
             bias=bias,
             stride=(2, 2),
             padding=(1, 0, 1, 0),
-            input_zero_point=-4,
+            input_zero_point=0,
         )
         np.testing.assert_array_equal(actual, expected)
         self.assertEqual(actual.dtype, np.int8)
         self.assertTrue(actual.flags.c_contiguous)
+
+    def test_nonzero_input_zero_point_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "symmetric INT8 convolution"):
+            conv2d_int8(
+                np.ones((1, 1, 1, 1), dtype=np.int8),
+                np.ones((1, 1, 1, 1), dtype=np.int8),
+                multipliers_q31=(INT32_MAX,),
+                shifts=(0,),
+                output_zero_point=0,
+                input_zero_point=1,
+            )
 
     def test_signed_endpoint_convolution(self):
         source = np.array([[[[-128, 127]]]], dtype=np.int8)
@@ -190,6 +201,17 @@ class HostOperatorTests(unittest.TestCase):
 
 
 class FullyConnectedTests(unittest.TestCase):
+    def test_nonzero_input_zero_point_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "symmetric INT8 fully connected"):
+            fully_connected_int8(
+                np.ones((1, 1), dtype=np.int8),
+                np.ones((1, 1), dtype=np.int8),
+                multipliers_q31=(INT32_MAX,),
+                shifts=(0,),
+                output_zero_point=0,
+                input_zero_point=-1,
+            )
+
     def test_per_channel_output_matches_scalar_reference(self):
         source = np.array([[-128, -1, 0, 1, 127]], dtype=np.int8)
         weights = np.array(
