@@ -195,7 +195,7 @@ def main() -> int:
     parser.add_argument("--write-manifest", action="store_true")
     parser.add_argument("--source-commit", default=_default_commit())
     parser.add_argument("--vivado-version", default="unknown")
-    parser.add_argument("--array-size", type=int, choices=(2, 8), default=2)
+    parser.add_argument("--array-size", type=int, choices=(2, 8), default=8)
     arguments = parser.parse_args()
     artifact_dir = arguments.artifact_dir.resolve()
     if arguments.write_manifest:

@@ -13,7 +13,7 @@ param(
     [ValidatePattern('^/[A-Za-z0-9._/-]+$')]
     [string]$RemoteRoot = '/home/xilinx/jupyter_notebooks/npu_resnet18',
 
-    [string]$ArtifactDir = 'build/vivado/npu_matrix/artifacts',
+    [string]$ArtifactDir = 'build/vivado/npu_matrix_8x8/artifacts',
 
     [switch]$AllowArtifactCommitMismatch
 )
@@ -82,7 +82,7 @@ Write-Host "Deployment target: $target`:$remoteDeployment"
 try {
     Invoke-CheckedCommand -Command 'ssh' -Arguments @(
         $target,
-        "set -eu; test ! -e '$remoteDeployment'; mkdir -p '$remoteDeployment/examples' '$remoteDeployment/src' '$remoteDeployment/build/vivado/npu_matrix'"
+        "set -eu; test ! -e '$remoteDeployment'; mkdir -p '$remoteDeployment/examples' '$remoteDeployment/src' '$remoteDeployment/build/vivado/npu_matrix_8x8'"
     )
     Invoke-CheckedCommand -Command 'scp' -Arguments @(
         '-r', '--',
@@ -99,7 +99,7 @@ try {
     Invoke-CheckedCommand -Command 'scp' -Arguments @(
         '-r', '--',
         $resolvedArtifacts,
-        "${target}:$remoteDeployment/build/vivado/npu_matrix/"
+        "${target}:$remoteDeployment/build/vivado/npu_matrix_8x8/"
     )
     Invoke-CheckedCommand -Command 'scp' -Arguments @(
         '--',

@@ -75,7 +75,7 @@ artifacts:
 vivado -mode batch -nojournal -nolog `
   -source src/hw/vivado_tcl/npu_matrix/build_overlay.tcl
 python -m src.runtime.verify_overlay `
-  build/vivado/npu_matrix/artifacts
+  build/vivado/npu_matrix_8x8/artifacts
 ```
 
 Stop unless the verification marker says the BIT/HWH provenance and metadata
@@ -151,7 +151,7 @@ source /etc/profile.d/pynq_venv.sh
 cd /home/xilinx/jupyter_notebooks/npu_resnet18/releases/<deployment-id>
 sudo XILINX_XRT=/usr /usr/local/share/pynq-venv/bin/python3 \
   examples/resnet18/run_on_board.py \
-  --artifact-dir build/vivado/npu_matrix/artifacts \
+  --artifact-dir build/vivado/npu_matrix_8x8/artifacts \
   --expected-source-commit <40-character-artifact-commit> \
   --deployed-source-commit <40-character-deployed-commit> \
   --evidence board-evidence.json

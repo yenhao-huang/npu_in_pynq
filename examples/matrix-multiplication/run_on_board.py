@@ -57,10 +57,10 @@ def execute_cases(
     """Execute required cases through public runtimes and return PASS evidence."""
 
     multiplier = TiledMatrixMultiplier(runtime)
-    normal_a = np.array([[1, -2, 3], [4, 5, -6]], dtype=np.int8)
-    normal_b = np.array([[7, 8], [-9, 10], [11, -12]], dtype=np.int8)
-    non_aligned_a = (np.arange(15).reshape(3, 5) - 7).astype(np.int8)
-    non_aligned_b = (np.arange(15).reshape(5, 3) - 5).astype(np.int8)
+    normal_a = ((np.arange(runtime.max_m * 5).reshape(runtime.max_m, 5) % 17) - 8).astype(np.int8)
+    normal_b = ((np.arange(5 * runtime.max_n).reshape(5, runtime.max_n) % 19) - 9).astype(np.int8)
+    non_aligned_a = ((np.arange((runtime.max_m + 1) * 5).reshape(runtime.max_m + 1, 5) % 17) - 8).astype(np.int8)
+    non_aligned_b = ((np.arange(5 * (runtime.max_n + 1)).reshape(5, runtime.max_n + 1) % 19) - 9).astype(np.int8)
     cases = (
         ("normal", normal_a, normal_b),
         ("non_aligned", non_aligned_a, non_aligned_b),
