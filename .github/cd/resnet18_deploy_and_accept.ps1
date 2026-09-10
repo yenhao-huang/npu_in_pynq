@@ -19,7 +19,7 @@ param(
     [ValidatePattern('^/[A-Za-z0-9._/-]+$')]
     [string]$RemoteRoot,
 
-    [string]$ArtifactDir = 'build/vivado/npu_matrix/artifacts',
+    [string]$ArtifactDir = 'build/vivado/npu_matrix_8x8/artifacts',
 
     [string]$ModelDir = 'examples/resnet18/model',
 
@@ -128,7 +128,7 @@ Assert-CommandAvailable -Name 'ssh'
 Assert-CommandAvailable -Name 'scp'
 Invoke-CheckedCommand -Command 'ssh' -Arguments @(
     $target,
-    "set -eu; test ! -e '$remoteDeployment'; mkdir -p '$remoteDeployment/examples' '$remoteDeployment/src' '$remoteDeployment/build/vivado/npu_matrix'"
+    "set -eu; test ! -e '$remoteDeployment'; mkdir -p '$remoteDeployment/examples' '$remoteDeployment/src' '$remoteDeployment/build/vivado/npu_matrix_8x8'"
 )
 Invoke-CheckedCommand -Command 'scp' -Arguments @(
     '-r', '--',
@@ -145,7 +145,7 @@ foreach ($directory in @('model', 'runtime', 'export')) {
 Invoke-CheckedCommand -Command 'scp' -Arguments @(
     '-r', '--',
     $resolvedArtifacts,
-    "${target}:$remoteDeployment/build/vivado/npu_matrix/"
+    "${target}:$remoteDeployment/build/vivado/npu_matrix_8x8/"
 )
 
 $mismatchOption = if ($AllowArtifactCommitMismatch) {
@@ -153,7 +153,7 @@ $mismatchOption = if ($AllowArtifactCommitMismatch) {
 } else {
     ''
 }
-$remoteCommand = "set -eu; cd '$remoteDeployment'; test -r /etc/profile.d/xrt_setup.sh; source /etc/profile.d/xrt_setup.sh; test -r /etc/profile.d/pynq_venv.sh; source /etc/profile.d/pynq_venv.sh; test -x /usr/local/share/pynq-venv/bin/python3; sudo -n XILINX_XRT=/usr /usr/local/share/pynq-venv/bin/python3 examples/resnet18/run_on_board.py --artifact-dir build/vivado/npu_matrix/artifacts --expected-source-commit '$artifactCommit' --deployed-source-commit '$sourceCommit'$mismatchOption --evidence board-evidence.json"
+$remoteCommand = "set -eu; cd '$remoteDeployment'; test -r /etc/profile.d/xrt_setup.sh; source /etc/profile.d/xrt_setup.sh; test -r /etc/profile.d/pynq_venv.sh; source /etc/profile.d/pynq_venv.sh; test -x /usr/local/share/pynq-venv/bin/python3; sudo -n XILINX_XRT=/usr /usr/local/share/pynq-venv/bin/python3 examples/resnet18/run_on_board.py --artifact-dir build/vivado/npu_matrix_8x8/artifacts --expected-source-commit '$artifactCommit' --deployed-source-commit '$sourceCommit'$mismatchOption --evidence board-evidence.json"
 Invoke-CheckedCommand -Command 'ssh' -Arguments @($target, $remoteCommand)
 
 $evidenceDirectory = Split-Path -Parent $resolvedEvidence

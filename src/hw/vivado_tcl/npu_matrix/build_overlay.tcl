@@ -4,7 +4,7 @@
 
 set script_dir [file normalize [file dirname [info script]]]
 set repo_root [file normalize [file join $script_dir .. .. .. ..]]
-set array_size 2
+set array_size 8
 set elaborate_only 0
 set allow_dirty 0
 for {set argument_index 0} {$argument_index < [llength $argv]} {incr argument_index} {

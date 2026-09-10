@@ -1,8 +1,7 @@
 # NPU Matrix Overlay
 
 The PYNQ-Z1 matrix overlay supports source-controlled 2x2 and 8x8 systolic
-array configurations. The 2x2 target remains the default so existing build and
-runtime workflows are unchanged.
+array configurations. The 8x8 target is the default. Explicit 2x2 builds remain supported.
 
 ## Select a configuration
 
@@ -13,8 +12,8 @@ vivado -mode batch -source src/hw/vivado_tcl/npu_matrix/build_overlay.tcl \
   -tclargs --array-size 8
 ```
 
-Use `--array-size 2` or omit the option for the default target. Only `2` and
-`8` are accepted. The default build is written below
+Omit the option for the default 8x8 target; use `--array-size 2` for 2x2. Only `2` and
+`8` are accepted. The explicit 2x2 build is written below
 `build/vivado/npu_matrix/`; the 8x8 build uses
 `build/vivado/npu_matrix_8x8/` so the two configurations cannot overwrite one
 another.

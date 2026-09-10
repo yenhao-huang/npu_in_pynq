@@ -1,4 +1,7 @@
-# ResNet-18 real-model workflow
+# ResNet-18 8 x 8 NPU demo
+
+The default demo uses an 8 x 8 systolic array (64 processing elements), with
+`MAX_K=256`. The notebook rejects other overlay dimensions.
 
 This example downloads one pinned official TorchVision ResNet-18, converts it
 to the repository's Phase 2A signed-INT8 format, checks a real
@@ -75,8 +78,11 @@ artifacts:
 vivado -mode batch -nojournal -nolog `
   -source src/hw/vivado_tcl/npu_matrix/build_overlay.tcl
 python -m src.runtime.verify_overlay `
-  build/vivado/npu_matrix/artifacts
+  build/vivado/npu_matrix_8x8/artifacts
 ```
+
+The notebook and deployment wrapper use `build/vivado/npu_matrix_8x8/artifacts`.
+The wrapper validates model assets and the 8 x 8 overlay before any transfer.
 
 Stop unless the verification marker says the BIT/HWH provenance and metadata
 passed and the artifact manifest identifies the intended source commit.
@@ -123,7 +129,11 @@ deployment wrapper, then open:
 examples/resnet18/resnet18.ipynb
 ```
 
-Select the board's PYNQ Python kernel and run one cell at a time. The notebook
+Select the board's PYNQ Python kernel and run one cell at a time. Confirm Step 4 displays `array_size: 8` and Step 6 displays
+`matrix_limits: [8, 8, 256]`. Step 7 runs ResNet-18 and displays elapsed time,
+MAC count and physical job count.
+
+The notebook
 does not hide acceptance behind `run_on_board.py`. It separately exposes the
 deployment provenance, model file digests, BIT/HWH verification, reconstructed
 model graph, physical `NPURuntime` identity, execution metrics, and every
@@ -151,7 +161,7 @@ source /etc/profile.d/pynq_venv.sh
 cd /home/xilinx/jupyter_notebooks/npu_resnet18/releases/<deployment-id>
 sudo XILINX_XRT=/usr /usr/local/share/pynq-venv/bin/python3 \
   examples/resnet18/run_on_board.py \
-  --artifact-dir build/vivado/npu_matrix/artifacts \
+  --artifact-dir build/vivado/npu_matrix_8x8/artifacts \
   --expected-source-commit <40-character-artifact-commit> \
   --deployed-source-commit <40-character-deployed-commit> \
   --evidence board-evidence.json

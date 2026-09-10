@@ -116,6 +116,16 @@ class StandalonePackageTests(unittest.TestCase):
             if path.is_file()
         }
         self.assertEqual(actual_files, expected_files)
+        environment = os.environ.copy()
+        environment.pop("PYTHONPATH", None)
+        imported = subprocess.run(
+            [sys.executable, "-c",
+             "from src.runtime import load_pynq_runtime; "
+             "from src.runtime.verify_overlay import verify_artifacts; "
+             "from runtime.matrix_multiplication import TiledMatrixMultiplier"],
+            cwd=self.output_dir, env=environment, capture_output=True, text=True,
+        )
+        self.assertEqual(imported.returncode, 0, imported.stderr)
         self.assertEqual(manifest["release_tag"], "v0.1.1")
         self.assertEqual(manifest["source_commit"], "a" * 40)
         self.assertEqual(
@@ -182,6 +192,17 @@ class StandalonePackageTests(unittest.TestCase):
 
 
 class BoardRunnerTests(unittest.TestCase):
+    def test_8x8_cases_cover_full_array_and_edge_tiles(self) -> None:
+        board_module = load_required_module(
+            "matrix_run_on_board_8x8", EXAMPLE_ROOT / "run_on_board.py"
+        )
+        runtime = FakePhysicalRuntime()
+        runtime.max_m = runtime.max_n = 8
+        evidence = board_module.execute_cases(runtime, {}, release_tag="v0.0.0")
+        self.assertEqual([case["tile_count"] for case in evidence["cases"]], [1, 4, 4])
+        self.assertEqual(evidence["cases"][0]["shape"][0], 8)
+        self.assertEqual(evidence["cases"][1]["shape"][0], 9)
+
     def test_required_cases_and_evidence(self) -> None:
         board_module = load_required_module(
             "matrix_run_on_board",
@@ -325,8 +346,8 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
             "runs-on: [self-hosted, vivado]",
             "runs-on: [self-hosted, pynq-z1]",
             "environment: pynq-z1-production",
-            "build/vivado/npu_matrix/artifacts",
-            "build/vivado/npu_matrix/reports/build_evidence.txt",
+            "build/vivado/npu_matrix_8x8/artifacts",
+            "build/vivado/npu_matrix_8x8/reports/build_evidence.txt",
             "gh release upload",
             "board-evidence.json",
         )

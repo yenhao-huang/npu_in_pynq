@@ -71,7 +71,7 @@ jobs:
         shell: pwsh
         run: |
           python src/runtime/verify_overlay.py `
-            build/vivado/npu_matrix/artifacts
+            build/vivado/npu_matrix_8x8/artifacts
           if ($LASTEXITCODE -ne 0) {
             throw "overlay verification failed with exit code $LASTEXITCODE"
           }
@@ -79,7 +79,7 @@ jobs:
       - name: Verify build evidence exists
         shell: pwsh
         run: |
-          $evidence = 'build/vivado/npu_matrix/reports/build_evidence.txt'
+          $evidence = 'build/vivado/npu_matrix_8x8/reports/build_evidence.txt'
           if (-not (Test-Path -LiteralPath $evidence -PathType Leaf)) {
             throw "missing build evidence: $evidence"
           }
@@ -92,7 +92,7 @@ jobs:
           $package = "mount/matrix-multiplication/$tag"
           python examples/matrix-multiplication/package_example.py `
             --repository-root . `
-            --artifact-dir build/vivado/npu_matrix/artifacts `
+            --artifact-dir build/vivado/npu_matrix_8x8/artifacts `
             --output-dir $package `
             --release-tag $tag `
             --source-commit $commit
@@ -111,10 +111,10 @@ jobs:
           name: npu-matrix-build-${{ needs.validate-release.outputs.release_tag }}
           if-no-files-found: error
           path: |
-            build/vivado/npu_matrix/artifacts/npu_matrix.bit
-            build/vivado/npu_matrix/artifacts/npu_matrix.hwh
-            build/vivado/npu_matrix/artifacts/npu_matrix.manifest.json
-            build/vivado/npu_matrix/reports/build_evidence.txt
+            build/vivado/npu_matrix_8x8/artifacts/npu_matrix.bit
+            build/vivado/npu_matrix_8x8/artifacts/npu_matrix.hwh
+            build/vivado/npu_matrix_8x8/artifacts/npu_matrix.manifest.json
+            build/vivado/npu_matrix_8x8/reports/build_evidence.txt
 
       - name: Retain standalone deployment package
         uses: actions/upload-artifact@v4
@@ -130,10 +130,10 @@ jobs:
         run: |
           $tag = '${{ needs.validate-release.outputs.release_tag }}'
           gh release upload $tag `
-            'build/vivado/npu_matrix/artifacts/npu_matrix.bit' `
-            'build/vivado/npu_matrix/artifacts/npu_matrix.hwh' `
-            'build/vivado/npu_matrix/artifacts/npu_matrix.manifest.json' `
-            'build/vivado/npu_matrix/reports/build_evidence.txt' `
+            'build/vivado/npu_matrix_8x8/artifacts/npu_matrix.bit' `
+            'build/vivado/npu_matrix_8x8/artifacts/npu_matrix.hwh' `
+            'build/vivado/npu_matrix_8x8/artifacts/npu_matrix.manifest.json' `
+            'build/vivado/npu_matrix_8x8/reports/build_evidence.txt' `
             "build/cd/npu-matrix-$tag.tar.gz" `
             --clobber
           if ($LASTEXITCODE -ne 0) {
