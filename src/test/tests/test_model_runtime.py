@@ -184,6 +184,20 @@ class ModelRuntimeTests(unittest.TestCase):
         np.testing.assert_array_equal(second, golden(second_input))
         self.assertFalse(np.shares_memory(first, second))
 
+    def test_8x8_resnet_sequence_matches_2x2_with_fewer_jobs(self):
+        source = np.array([[[[-3], [2]], [[4], [1]]]], dtype=np.int8)
+        results = {}
+        for size in (2, 8):
+            physical = FakeRuntime()
+            physical.max_m = physical.max_n = size
+            physical.max_k = 256
+            _, runtime = self.runtime(physical)
+            results[size] = runtime.run({"input": source})
+            np.testing.assert_array_equal(results[size].outputs["logits"], golden(source))
+            self.assertTrue(all(a.shape[0] <= size and b.shape[1] <= size
+                                for a, b, _ in physical.calls))
+        self.assertLess(results[8].metrics.physical_jobs, results[2].metrics.physical_jobs)
+
     def test_bounded_capture_is_owned_and_rejects_invalid_names_preflight(self):
         physical, runtime = self.runtime(FakeRuntime(cycles=7))
         source = np.ones((1, 2, 2, 1), dtype=np.int8)

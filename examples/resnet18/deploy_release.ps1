@@ -49,9 +49,16 @@ $artifactCommit = ([string]$artifactManifest.source_commit).ToLowerInvariant()
 
 Push-Location $repositoryRoot
 try {
+    Invoke-CheckedCommand -Command 'python' -Arguments @(
+        'examples/resnet18/scripts/verify_demo.py',
+        '--artifact-dir', $resolvedArtifacts
+    )
     $sourceCommit = (& git rev-parse HEAD).Trim().ToLowerInvariant()
     if ($LASTEXITCODE -ne 0) {
         throw 'Cannot determine the deployed source commit'
+    }
+    if ($artifactCommit -ne $sourceCommit -and -not $AllowArtifactCommitMismatch) {
+        throw 'Artifact and deployed commits differ; explicitly allow the development overlay or rebuild.'
     }
 }
 finally {
@@ -66,6 +73,7 @@ $metadataPath = Join-Path (
 ) "npu-resnet18-$([Guid]::NewGuid().ToString('N')).json"
 $metadata = [ordered]@{
     allow_source_mismatch = [bool]$AllowArtifactCommitMismatch
+    array_size = 8
     artifact_source_commit = $artifactCommit
     deployed_source_commit = $sourceCommit
     deployment_id = $DeploymentId
