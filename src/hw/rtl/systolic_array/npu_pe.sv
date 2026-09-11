@@ -2,7 +2,8 @@
 
 module npu_pe #(
     parameter integer DATA_WIDTH = 8,
-    parameter integer ACC_WIDTH = 32
+    parameter integer ACC_WIDTH = 32,
+    parameter DSP_STYLE = "yes"
 ) (
     input  logic                         clk,
     input  logic                         rst_n,
@@ -23,12 +24,15 @@ module npu_pe #(
 
     logic signed [PRODUCT_WIDTH-1:0] product;
     logic signed [ACC_WIDTH-1:0] product_extended;
-    (* use_dsp = "yes" *) logic signed [ACC_WIDTH-1:0] product_pipeline;
+    (* use_dsp = DSP_STYLE *) logic signed [ACC_WIDTH-1:0] product_pipeline;
     logic                         product_valid_pipeline;
     logic signed [ACC_WIDTH-1:0] wrapped_sum;
     logic signed [ACC_WIDTH-1:0] saturated_sum;
 
     initial begin
+        if (DSP_STYLE != "yes" && DSP_STYLE != "no") begin
+            $fatal(1, "npu_pe DSP_STYLE must be yes or no");
+        end
         if (DATA_WIDTH != 8) begin
             $fatal(1, "npu_pe ABI v1 requires DATA_WIDTH=8");
         end
