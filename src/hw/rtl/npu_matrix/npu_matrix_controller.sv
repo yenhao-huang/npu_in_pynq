@@ -57,17 +57,14 @@ module npu_matrix_controller #(
     logic [31:0] compute_step;
     logic [15:0] output_row_count;
     logic [15:0] output_column_count;
-    logic signed [7:0] a_buffer [0:ROWS*MAX_K-1];
-    logic signed [7:0] b_buffer [0:MAX_K*COLUMNS-1];
+    localparam integer K_ADDR_WIDTH = (MAX_K > 1) ? $clog2(MAX_K) : 1;
 
     logic array_clear, array_enable;
     logic signed [ROWS*8-1:0] array_a;
     logic [ROWS-1:0] array_a_valid;
     logic signed [COLUMNS*8-1:0] array_b;
     logic [COLUMNS-1:0] array_b_valid;
-    logic signed [ROWS*8-1:0] scheduled_a;
     logic [ROWS-1:0] scheduled_a_valid;
-    logic signed [COLUMNS*8-1:0] scheduled_b;
     logic [COLUMNS-1:0] scheduled_b_valid;
     wire signed [ROWS*COLUMNS*32-1:0] array_accumulators;
 
@@ -119,20 +116,20 @@ module npu_matrix_controller #(
                 (output_column_count == active_n - 1);
         end
 
-        array_clear = (state == STATE_CLEAR);
-        array_enable = (state == STATE_COMPUTE);
-        scheduled_a = '0;
+        // A is complete before B loading begins. Advance the entire array only
+        // when the next complete B row is resident; holding enable also holds
+        // every PE and the registered boundary inputs across stream stalls.
+        array_clear = (state == STATE_LOAD_A);
+        array_enable = (state == STATE_COMPUTE) ||
+            ((state == STATE_LOAD_B) && (compute_step < widen_u16(load_outer)));
         scheduled_a_valid = '0;
-        scheduled_b = '0;
         scheduled_b_valid = '0;
         reduction_index = 0;
-        if (state == STATE_COMPUTE) begin
+        if ((state == STATE_LOAD_B) || (state == STATE_COMPUTE)) begin
             for (row_index = 0; row_index < ROWS; row_index = row_index + 1) begin
                 reduction_index = compute_step - row_index;
                 if ((row_index < active_m) &&
                     (reduction_index >= 0) && (reduction_index < active_k)) begin
-                    scheduled_a[row_index*8 +: 8] =
-                        a_buffer[row_index*MAX_K + reduction_index];
                     scheduled_a_valid[row_index] = 1'b1;
                 end
             end
@@ -141,8 +138,6 @@ module npu_matrix_controller #(
                 reduction_index = compute_step - column_index;
                 if ((column_index < active_n) &&
                     (reduction_index >= 0) && (reduction_index < active_k)) begin
-                    scheduled_b[column_index*8 +: 8] =
-                        b_buffer[reduction_index*COLUMNS + column_index];
                     scheduled_b_valid[column_index] = 1'b1;
                 end
             end
@@ -230,6 +225,7 @@ module npu_matrix_controller #(
                         end
                     end
                     STATE_LOAD_B: begin
+                        if (array_enable) compute_step <= compute_step + 1;
                         if (s_axis_tvalid && s_axis_tready) begin
                             if (s_axis_tlast !=
                                 ((load_outer == active_k - 1) &&
@@ -246,7 +242,6 @@ module npu_matrix_controller #(
                                     (load_inner == active_n - 1)) begin
                                     load_outer <= 0;
                                     load_inner <= 0;
-                                    compute_step <= 0;
                                     state <= STATE_CLEAR;
                                 end else if (load_inner == active_n - 1) begin
                                     load_outer <= load_outer + 1;
@@ -258,7 +253,6 @@ module npu_matrix_controller #(
                         end
                     end
                     STATE_CLEAR: begin
-                        compute_step <= 0;
                         state <= STATE_COMPUTE;
                     end
                     STATE_COMPUTE: begin
@@ -328,38 +322,50 @@ module npu_matrix_controller #(
         end
     end
 
-    always_ff @(posedge clk) begin
-        if (status_busy && (state == STATE_LOAD_A) &&
-            s_axis_tvalid && s_axis_tready &&
-            (s_axis_tlast == ((load_outer == active_m - 1) &&
-                              (load_inner == active_k - 1)))) begin
-            a_buffer[widen_u16(load_outer) * MAX_K +
-                     widen_u16(load_inner)] <= s_axis_tdata;
+    // One single-write/synchronous-read bank per array edge. Flat memories
+    // require ROWS/COLUMNS independent read ports and dissolve into registers
+    // at larger sizes. No reset on memory or its data output: validity masks
+    // stale contents and permits native block-RAM inference.
+    genvar bank;
+    generate
+        for (bank = 0; bank < ROWS; bank = bank + 1) begin : gen_a_banks
+            (* ram_style = "block" *) logic [7:0] memory [0:MAX_K-1];
+            wire [K_ADDR_WIDTH-1:0] read_index = K_ADDR_WIDTH'(compute_step - bank);
+            always_ff @(posedge clk) begin
+                if (status_busy && (state == STATE_LOAD_A) &&
+                    s_axis_tvalid && s_axis_tready && (widen_u16(load_outer) == bank) &&
+                    (s_axis_tlast == ((load_outer == active_m - 1) &&
+                                     (load_inner == active_k - 1))))
+                    memory[load_inner[K_ADDR_WIDTH-1:0]] <= s_axis_tdata;
+                if (array_enable)
+                    array_a[bank*8 +: 8] <= memory[read_index];
+            end
         end
-        if (status_busy && (state == STATE_LOAD_B) &&
-            s_axis_tvalid && s_axis_tready &&
-            (s_axis_tlast == ((load_outer == active_k - 1) &&
-                              (load_inner == active_n - 1)))) begin
-            b_buffer[widen_u16(load_outer) * COLUMNS +
-                     widen_u16(load_inner)] <= s_axis_tdata;
+        for (bank = 0; bank < COLUMNS; bank = bank + 1) begin : gen_b_banks
+            (* ram_style = "block" *) logic [7:0] memory [0:MAX_K-1];
+            wire [K_ADDR_WIDTH-1:0] read_index = K_ADDR_WIDTH'(compute_step - bank);
+            always_ff @(posedge clk) begin
+                if (status_busy && (state == STATE_LOAD_B) &&
+                    s_axis_tvalid && s_axis_tready && (widen_u16(load_inner) == bank) &&
+                    (s_axis_tlast == ((load_outer == active_k - 1) &&
+                                     (load_inner == active_n - 1))))
+                    memory[load_outer[K_ADDR_WIDTH-1:0]] <= s_axis_tdata;
+                if (array_enable)
+                    array_b[bank*8 +: 8] <= memory[read_index];
+            end
         end
-    end
+    endgenerate
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            array_a <= '0;
             array_a_valid <= '0;
-            array_b <= '0;
             array_b_valid <= '0;
-        end else if (soft_reset_pulse || (state != STATE_COMPUTE)) begin
-            array_a <= '0;
+        end else if (soft_reset_pulse || (state == STATE_IDLE) ||
+                     (state == STATE_LOAD_A)) begin
             array_a_valid <= '0;
-            array_b <= '0;
             array_b_valid <= '0;
-        end else begin
-            array_a <= scheduled_a;
+        end else if (array_enable) begin
             array_a_valid <= scheduled_a_valid;
-            array_b <= scheduled_b;
             array_b_valid <= scheduled_b_valid;
         end
     end

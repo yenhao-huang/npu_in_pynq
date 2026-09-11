@@ -4,7 +4,10 @@ module npu_systolic_array #(
     parameter integer ROWS = 2,
     parameter integer COLUMNS = 2,
     parameter integer DATA_WIDTH = 8,
-    parameter integer ACC_WIDTH = 32
+    parameter integer ACC_WIDTH = 32,
+    // Leave headroom on the Zynq-7020 (220 DSPs); excess PEs use LUT
+    // multipliers with identical registers, valid timing, and arithmetic.
+    parameter integer DSP_BUDGET = 192
 ) (
     input  logic                                      clk,
     input  logic                                      rst_n,
@@ -54,7 +57,8 @@ module npu_systolic_array #(
             for (column = 0; column < COLUMNS; column = column + 1) begin : gen_columns
                 npu_pe #(
                     .DATA_WIDTH(DATA_WIDTH),
-                    .ACC_WIDTH(ACC_WIDTH)
+                    .ACC_WIDTH(ACC_WIDTH),
+                    .DSP_STYLE((row*COLUMNS+column < DSP_BUDGET) ? "yes" : "no")
                 ) pe (
                     .clk(clk),
                     .rst_n(rst_n),
